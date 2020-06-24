@@ -1,0 +1,120 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Fri Apr  3 13:52:28 2020
+
+@author: bradenbaseley
+"""
+
+import os
+import re
+import pandas as pd
+import textstat
+from nltk.corpus import stopwords
+from nltk.stem import PorterStemmer, WordNetLemmatizer
+
+my_stem = PorterStemmer()
+my_lemmatizer = WordNetLemmatizer()
+
+stop_words = set(stopwords.words('english'))
+
+words = ['int', 'ext', 'pg', 'end', 
+         'credits', 'fade', 'over', 
+         'black', 'cont', 'contd', 
+         'open', 'cut', 'title', 
+         'titles', 'card', 'vo', 'scene']
+
+for i in words:
+    stop_words.add(i)
+
+the_path = '/Users/bradenbaseley/Documents/NLP/text'
+
+the_dir = os.listdir(the_path)
+
+the_df = pd.DataFrame()
+for dir_name in the_dir:
+    f = open(the_path + '/' + dir_name, "r", encoding = 'ISO-8859-1')
+    tmp_read = re.sub('[^a-zA-Z]+', ' ', str(f.read()))
+    tmp_read = [word.lower() for word in tmp_read.split() if word.lower() not in stop_words]
+    tmp_read = ' '.join(tmp_read)
+    f.close()
+    my_df = pd.DataFrame([tmp_read], columns=['body_basic'])
+    stem = [my_stem.stem(word) for word in tmp_read.split()]
+    stem = ' '.join(stem)
+    lemma = [my_lemmatizer.lemmatize(word) for word in tmp_read.split()]
+    lemma = ' '.join(lemma)
+    
+    my_df['film'] = re.sub('(.txt)', '', dir_name)
+    
+    my_df['body_stem'] = [stem]
+    my_df['word_count_stem'] = len([word for word in stem.split()])
+    my_df['distinct_words_stem'] = len(set([word for word in stem.split()]))
+    my_df['proportion_distinct_stem'] = my_df['distinct_words_stem'] / my_df['word_count_stem']
+    my_df['syllable_stem'] = textstat.syllable_count(stem)
+    my_df['avg_syllable_stem'] = my_df['syllable_stem'] / my_df['word_count_stem']
+    
+    my_df['body_lemma'] = [lemma]
+    my_df['word_count_lemma'] = len([word for word in lemma.split()])
+    my_df['distinct_words_lemma'] = len(set([word for word in lemma.split()]))
+    my_df['proportion_distinct_lemma'] = my_df['distinct_words_lemma'] / my_df['word_count_lemma']
+    my_df['syllable_lemma'] = textstat.syllable_count(lemma)
+    my_df['avg_syllable_lemma'] = my_df['syllable_lemma'] / my_df['word_count_lemma']
+    
+    my_df['word_count_basic'] = len([word for word in tmp_read.split()])
+    my_df['distinct_words_basic'] = len(set([word for word in tmp_read.split()]))
+    my_df['proportion_distinct_basic'] = my_df['distinct_words_basic'] / my_df['word_count_basic']
+    my_df['syllable_basic'] = textstat.syllable_count(tmp_read)
+    my_df['avg_syllable_basic'] = my_df['syllable_basic'] / my_df['word_count_basic']
+    
+    the_df = the_df.append(my_df, ignore_index = True)
+
+winners = ['the king\'s speech', 'midnight in paris',
+           'her', 'birdman', 'spotlight', 
+           'manchester by the sea', 'get out',
+           'green book', 'parasite']
+
+the_df['winners'] = the_df.apply(lambda x: x['film'] in winners, axis=1)
+
+def gen_senti(sentence):
+    import re
+    import os
+    
+    neg_path = '/Users/bradenbaseley/Documents/NLP/Homework/hw3/posNeg/negative-words.txt'
+    pos_path = '/Users/bradenbaseley/Documents/NLP/Homework/hw3/posNeg/positive-words.txt'
+
+    f = open(neg_path, encoding = 'ISO-8859-1')
+    tmp_read = str(f.read())
+    negative = [word for word in tmp_read.split()]
+    f.close()
+    
+    f = open(pos_path, encoding = 'ISO-8859-1')
+    tmp_read = str(f.read())
+    positive = [word for word in tmp_read.split()]
+    f.close()
+    
+    if len(sentence) != 0:
+        try:
+            sentence = re.sub('[^a-zA-Z0-9]', ' ', sentence)
+            wordlist = [word for word in sentence.split() if word.islower()]
+            
+            sentiment = 0
+            word_count = 0
+            
+            for i in wordlist:
+                if i in positive:
+                    sentiment += 1
+                    word_count += 1
+                elif i in negative:
+                    sentiment -= 1
+                    word_count += 1
+                else:
+                    sentiment += 0
+                    word_count += 0
+                    
+            return (sentiment / word_count)
+        except:
+            pass
+
+the_df['sentiment'] = the_df.apply(lambda x: gen_senti(x['body_basic']), axis=1)
+
+the_df.to_csv('the_df.csv')
